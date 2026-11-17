@@ -1,0 +1,18 @@
+# Netlify builds from GitHub on every push to main.
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  # README requires Node 22.13+.
+  NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
+
+# OCR data and fonts change only with a new build; let browsers cache them.
+[[headers]]
+  for = "/ocr/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
