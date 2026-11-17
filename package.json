@@ -1,0 +1,33 @@
+{
+  "name": "theyyam-poster-extractor",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "dependencies": {
+    "idb-keyval": "^6.2.2",
+    "kollavarsham": "^2.5.4",
+    "lucide-react": "^0.468.0",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tesseract.js": "^6.0.1",
+    "tesseract.js-core": "^6.0.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "tailwindcss": "^4.1.17",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.1"
+  }
+}
