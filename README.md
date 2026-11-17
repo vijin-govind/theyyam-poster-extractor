@@ -21,6 +21,16 @@ npm run build
 
 The build runs TypeScript checks and creates `dist/`. Serve the entire directory over HTTPS, including `/ocr/` and `/posters/`. The application expects deployment at the origin root. Do not open `index.html` with `file://`; worker and module loading require an HTTP origin.
 
+### Deploy to Netlify
+
+`netlify.toml` configures the build (`npm run build`, Node 22, publish `dist/`), the security headers in `public/_headers`, and the venue-search function (`netlify/functions/venue-search.ts`, served at `/api/venue-search`).
+
+1. In Netlify, choose **Add new project → Import an existing project → GitHub** and select `theyyam-poster-extractor`. Netlify reads the settings from `netlify.toml`; keep the branch as `main`.
+2. Optional, for web **Find venue**: **Site configuration → Environment variables → Add a variable** `BRAVE_SEARCH_API_KEY`, then **Deploys → Trigger deploy**. The key stays on Netlify and is never sent to the browser. The function answers only requests from the app's own pages.
+3. Every push to `main` redeploys automatically.
+
+Saved batches and learned data live in each browser for the site's address; work done on `localhost` does not appear on the deployed site.
+
 The OCR worker, WebAssembly core, English and Malayalam recognition data, and PDF support assets are included under `public/ocr/`. Their license files are retained with the assets. No API key or server-side extraction service is required. The Sites hosting configuration is in `.openai/hosting.json`.
 
 ## Working with a batch
@@ -55,7 +65,7 @@ Setup (Brave Search API; Google's Custom Search JSON API no longer accepts new c
 2. Copy `.env.example` to `.env.local` and set `BRAVE_SEARCH_API_KEY=…`.
 3. Restart `npm run dev` (or `npm run build && npx vite preview`).
 
-The key is read only by the local Vite server (`server/braveSearch.ts`, endpoint `/api/venue-search`) and is never included in the page bundle, as Brave requires. Only the two search texts are sent to Brave; poster images and schedules are not. Static hosting (`dist/`) has no such endpoint, so the button reports that search is not set up. To use it on a deployment, serve `/api/venue-search` from a small server function that wraps `braveSearch`.
+The key is read only by the local Vite server (`server/braveSearch.ts`, endpoint `/api/venue-search`) and is never included in the page bundle, as Brave requires. Only the two search texts are sent to Brave; poster images and schedules are not. On Netlify the same endpoint is a Netlify Function (see **Deploy to Netlify**). Other static hosting of `dist/` has no such endpoint, so the button reports that search is not set up.
 
 ## Storage and privacy
 

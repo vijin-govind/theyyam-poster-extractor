@@ -53,3 +53,19 @@ test('sends the key only as a server-side header and maps Brave results', async 
   const rejected = (async () => json(401, {})) as typeof fetch;
   await assert.rejects(braveSearch('x', 'bad', rejected), /key was rejected/);
 });
+
+test('the deployed search endpoint answers only the app itself', async () => {
+  const { handleVenueSearch, isSameSiteRequest } = await import('../server/braveSearch');
+  assert.equal(isSameSiteRequest({ 'sec-fetch-site': 'same-origin' }), true);
+  assert.equal(isSameSiteRequest({ 'sec-fetch-site': 'cross-site' }), false);
+  assert.equal(isSameSiteRequest({ origin: 'https://app.example', host: 'app.example' }), true);
+  assert.equal(isSameSiteRequest({ origin: 'https://evil.example', host: 'app.example' }), false);
+  assert.equal(isSameSiteRequest({}), false);
+  const fakeFetch = (async () => json(200, { web: { results: [{ title: 'T', url: 'https://t.example', description: '' }] } })) as typeof fetch;
+  const blocked = await handleVenueSearch({ method: 'GET', url: '/api/venue-search?q=x', headers: { 'sec-fetch-site': 'cross-site' } }, 'key', { sameSiteOnly: true, fetchImpl: fakeFetch });
+  assert.equal(blocked.status, 403);
+  const missingKey = await handleVenueSearch({ method: 'GET', url: '/api/venue-search?q=x', headers: { 'sec-fetch-site': 'same-origin' } }, undefined, { sameSiteOnly: true });
+  assert.equal(missingKey.status, 503);
+  const ok = await handleVenueSearch({ method: 'GET', url: '/api/venue-search?q=x', headers: { 'sec-fetch-site': 'same-origin' } }, 'key', { sameSiteOnly: true, fetchImpl: fakeFetch });
+  assert.deepEqual([ok.status, ok.body.results?.length], [200, 1]);
+});

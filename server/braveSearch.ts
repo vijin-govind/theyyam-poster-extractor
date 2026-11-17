@@ -20,6 +20,47 @@ export async function braveSearch(query: string, key: string, fetchImpl: typeof 
   }));
 }
 
+export type VenueSearchRequest = {
+  method: string;
+  url: string;
+  /** Request headers needed for the same-site check (lower-case names). */
+  headers: { host?: string | null; origin?: string | null; 'sec-fetch-site'?: string | null };
+};
+export type VenueSearchResponse = { status: number; body: { results?: SearchResult[]; error?: string } };
+
+/**
+ * Only the app's own pages may use the search (and the owner's Brave quota).
+ * Browsers mark same-site fetches with Sec-Fetch-Site; cross-site pages cannot fake it.
+ */
+export function isSameSiteRequest(headers: VenueSearchRequest['headers']): boolean {
+  const site = headers['sec-fetch-site'];
+  if (site) return site === 'same-origin';
+  if (!headers.origin || !headers.host) return false;
+  try { return new URL(headers.origin).host === headers.host; } catch { return false; }
+}
+
+/** Shared by the Vite dev/preview servers and the Netlify Function. */
+export async function handleVenueSearch(
+  request: VenueSearchRequest,
+  key: string | undefined,
+  options: { cache?: Map<string, SearchResult[]>; sameSiteOnly?: boolean; notSetUp?: string; fetchImpl?: typeof fetch } = {},
+): Promise<VenueSearchResponse> {
+  if (request.method !== 'GET') return { status: 405, body: { error: 'Use GET.' } };
+  if (options.sameSiteOnly && !isSameSiteRequest(request.headers)) {
+    return { status: 403, body: { error: 'Venue search is only available from this app.' } };
+  }
+  if (!key) return { status: 503, body: { error: options.notSetUp || 'Online venue search is not set up.' } };
+  const query = new URL(request.url, 'http://localhost').searchParams.get('q')?.trim() || '';
+  if (!query || query.length > 200) return { status: 400, body: { error: 'Search text must be 1–200 characters.' } };
+  try {
+    const results = options.cache?.get(query) || await braveSearch(query, key, options.fetchImpl);
+    options.cache?.set(query, results);
+    return { status: 200, body: { results } };
+  } catch (error) {
+    return { status: 502, body: { error: error instanceof Error ? error.message : 'Venue search failed.' } };
+  }
+}
+
 /**
  * Serves GET /api/venue-search?q=… from the Vite dev and preview servers.
  * Results are cached in memory to save search quota while reviewing.
@@ -27,23 +68,13 @@ export async function braveSearch(query: string, key: string, fetchImpl: typeof 
 export function venueSearchPlugin(key: string | undefined): Plugin {
   const cache = new Map<string, SearchResult[]>();
   const handler = async (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => {
-    const send = (status: number, body: unknown) => {
-      res.statusCode = status;
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Cache-Control', 'no-store');
-      res.end(JSON.stringify(body));
-    };
-    if (req.method !== 'GET') return send(405, { error: 'Use GET.' });
-    if (!key) return send(503, { error: 'Online venue search is not set up. Add BRAVE_SEARCH_API_KEY to .env.local and restart the app.' });
-    const query = new URL(req.url || '', 'http://localhost').searchParams.get('q')?.trim() || '';
-    if (!query || query.length > 200) return send(400, { error: 'Search text must be 1–200 characters.' });
-    try {
-      const results = cache.get(query) || await braveSearch(query, key);
-      cache.set(query, results);
-      send(200, { results });
-    } catch (error) {
-      send(502, { error: error instanceof Error ? error.message : 'Venue search failed.' });
-    }
+    const { status, body } = await handleVenueSearch({ method: req.method || 'GET', url: req.url || '', headers: {} }, key, {
+      cache, notSetUp: 'Online venue search is not set up. Add BRAVE_SEARCH_API_KEY to .env.local and restart the app.',
+    });
+    res.statusCode = status;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(JSON.stringify(body));
   };
   return {
     name: 'venue-search',
